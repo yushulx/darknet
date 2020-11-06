@@ -3,8 +3,8 @@
 The repository aims to do **QR Code detection** with Yolo v3 model and decode **QR Code** in region using [Dynamsoft Barcode Reader](https://www.dynamsoft.com/Products/Dynamic-Barcode-Reader.aspx). 
 
 ## Download Pre-trained Yolo3 Model for QR Code
-[yolov3-tiny.weights for QR Code](https://www.dynamsoft.com/handle-download?productId=1000003&downloadLink=https://download.dynamsoft.com/codepool/ml/yolo3-tiny-qr.zip)
-[yolov3.weights for QR Code](https://www.dynamsoft.com/handle-download?productId=1000003&downloadLink=https://download.dynamsoft.com/codepool/ml/yolo3-qr.zip)
+- [yolov3-tiny.weights for QR Code](https://www.dynamsoft.com/handle-download?productId=1000003&downloadLink=https://download.dynamsoft.com/codepool/ml/yolo3-tiny-qr.zip)
+- [yolov3.weights for QR Code](https://www.dynamsoft.com/handle-download?productId=1000003&downloadLink=https://download.dynamsoft.com/codepool/ml/yolo3-qr.zip)
 
 ## How to Build and Run Darknet on Windows
 
