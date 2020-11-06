@@ -156,7 +156,7 @@ cv::Mat load_image_mat(char *filename, int channels)
 }
 // ----------------------------------------
 
-extern "C" void load_image_buffer(char *filename, int channels, unsigned char* image_buffer)
+extern "C" void load_image_buffer(char *filename, int channels, unsigned char** buffer, int *width, int *height, int *channel)
 {
     cv::Mat mat = load_image_mat(filename, channels);
 
@@ -164,6 +164,7 @@ extern "C" void load_image_buffer(char *filename, int channels, unsigned char* i
     int h = mat.rows;
     int c = mat.channels();
     unsigned char *data = (unsigned char *)mat.data;
+    unsigned char* image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * w * h * c);
     int index = 0;
     for (int y = 0; y < h; ++y) {
         for (int k = 0; k < c; ++k) {
@@ -174,6 +175,10 @@ extern "C" void load_image_buffer(char *filename, int channels, unsigned char* i
             }
         }
     }  
+    *buffer = image_buffer;
+    *width = w;
+    *height = h;
+    *channel = c;
 }
 // ----------------------------------------
 
@@ -361,6 +366,22 @@ extern "C" image mat_to_image(cv::Mat mat)
                 //uint8_t val = mat.at<Vec3b>(y, x).val[k];
                 //im.data[k*w*h + y*w + x] = val / 255.0f;
 
+                im.data[k*w*h + y*w + x] = data[y*step + x*c + k] / 255.0f;
+            }
+        }
+    }
+    return im;
+}
+
+extern "C" image buffer_to_image(unsigned char* buffer, int w, int h, int c)
+{
+    cv::Mat mat = cv::Mat(h, w, CV_8UC(c));
+    int step = mat.step;
+    image im = make_image(w, h, c);
+    unsigned char *data = buffer;
+    for (int y = 0; y < h; ++y) {
+        for (int k = 0; k < c; ++k) {
+            for (int x = 0; x < w; ++x) {
                 im.data[k*w*h + y*w + x] = data[y*step + x*c + k] / 255.0f;
             }
         }

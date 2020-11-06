@@ -22,6 +22,7 @@ typedef void* write_cv;
 // cv::Mat
 mat_cv *load_image_mat_cv(const char *filename, int flag);
 image load_image_cv(char *filename, int channels);
+image buffer_to_image(unsigned char* buffer, int w, int h, int c);
 image load_image_resize(char *filename, int w, int h, int c, image *im);
 int get_width_mat(mat_cv *mat);
 int get_height_mat(mat_cv *mat);

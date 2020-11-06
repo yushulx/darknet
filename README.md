@@ -2,20 +2,24 @@
 
 The repository aims to do **QR Code detection** with Yolo v3 model and decode **QR Code** in region using [Dynamsoft Barcode Reader](https://www.dynamsoft.com/Products/Dynamic-Barcode-Reader.aspx). 
 
-## Download Pre-trained Yolo3 Model for QR Code
+## Download Pre-trained Yolov3 Model for QR Code
 - [yolov3-tiny.weights for QR Code](https://www.dynamsoft.com/handle-download?productId=1000003&downloadLink=https://download.dynamsoft.com/codepool/ml/yolo3-tiny-qr.zip)
 - [yolov3.weights for QR Code](https://www.dynamsoft.com/handle-download?productId=1000003&downloadLink=https://download.dynamsoft.com/codepool/ml/yolo3-qr.zip)
 
-## License for Dynamsoft Barcode Reader
-To get barcode decoding results, you need to get a valid trial license from https://www.dynamsoft.com/customer/license/trialLicense. Then update the following code in `detector.c`:
+## Barcode SDK 
+1. Download [Dynamsoft Barcode Reader C++ SDK](https://www.dynamsoft.com/barcode-reader/downloads). 
 
-```c
-DBR_InitLicense(barcodeReader, "LICENSE-KEY");
-```
+2. Copy the latest header file and libraries to the `3rdparty\dbr` folder. 
+
+3. To get barcode decoding results, you need to get a valid trial license from https://www.dynamsoft.com/customer/license/trialLicense, and then update the following code in `detector.c`:
+
+    ```c
+    DBR_InitLicense(barcodeReader, "LICENSE-KEY");
+    ```
 
 ## How to Build and Run Darknet on Windows
 
-Install:
+**Install**
 
 - CMake 3.18.4
 - Visual Studio 2019 Community edition
@@ -31,13 +35,20 @@ Extract the model package to the test folder and then run the test:
 
 ```
 cd test
-..\darknet.exe detector test qrcode.data qrcode-yolov3-tiny.cfg qrcode-yolov3-tiny_last.weights 20201105151910.jpg
+..\darknet.exe detector barcode qrcode.data qrcode-yolov3-tiny.cfg qrcode-yolov3-tiny_last.weights 20201105151910.jpg
 ```
 
-Yolov3
+**Performance**
+
+| GPU              | Image             | Model       |Prediction  |
+| -----------------|-------------------| ------------|------------|
+| GeForce GTX 1660 | 20201105151910.jpg| Yolov3-tiny |22 ms       |
+| GeForce GTX 1660 | 20201105151910.jpg| Yolov3      |271.7ms     |
+
+**Yolov3**
 ![Yolov3](test/yolov3.jpg)
 
-Yolov3-tiny
+**Yolov3-tiny**
 ![Yolov3-tiny](test/yolov3-tiny.jpg)
 
 ## How to Get the QR Code Region

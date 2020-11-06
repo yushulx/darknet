@@ -1521,6 +1521,62 @@ image load_image_stb(char *filename, int channels)
     return im;
 }
 
+image buffer_to_image_stb(unsigned char* buffer, int w, int h, int c)
+{
+    unsigned char *data = buffer;
+    int i,j,k;
+    image im = make_image(w, h, c);
+    for(k = 0; k < c; ++k){
+        for(j = 0; j < h; ++j){
+            for(i = 0; i < w; ++i){
+                int dst_index = i + w*j + w*h*k;
+                int src_index = k + c*i + c*w*j;
+                im.data[dst_index] = (float)data[src_index]/255.;
+            }
+        }
+    }
+    return im;
+}
+
+void load_buffer_stb(char *filename, int channels, unsigned char** buffer, int *width, int *height, int *channel)
+{
+    int w, h, c;
+    unsigned char *data = stbi_load(filename, &w, &h, &c, channels);
+    if (!data) {
+        char shrinked_filename[1024];
+        if (strlen(filename) >= 1024) sprintf(shrinked_filename, "name is too long");
+        else sprintf(shrinked_filename, "%s", filename);
+        fprintf(stderr, "Cannot load image \"%s\"\nSTB Reason: %s\n", shrinked_filename, stbi_failure_reason());
+        FILE* fw = fopen("bad.list", "a");
+        fwrite(shrinked_filename, sizeof(char), strlen(shrinked_filename), fw);
+        char *new_line = "\n";
+        fwrite(new_line, sizeof(char), strlen(new_line), fw);
+        fclose(fw);
+        if (check_mistakes) {
+            printf("\n Error in load_image_stb() \n");
+            getchar();
+        }
+        return;
+    }
+    if(channels) c = channels;
+    int i,j,k;
+    int index = 0;
+    unsigned char* image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * w * h * c);
+    for(k = 0; k < c; ++k){
+        for(j = 0; j < h; ++j){
+            for(i = 0; i < w; ++i){
+                image_buffer[index] = data[index];
+                index++;
+            }
+        }
+    }
+    *buffer = image_buffer;
+    *width = w;
+    *height = h;
+    *channel = c;
+    free(data);
+}
+
 image load_image_stb_resize(char *filename, int w, int h, int c)
 {
     image out = load_image_stb(filename, c);    // without OpenCV
@@ -1540,6 +1596,22 @@ image load_image(char *filename, int w, int h, int c)
     image out = load_image_cv(filename, c);
 #else
     image out = load_image_stb(filename, c);    // without OpenCV
+#endif  // OPENCV
+
+    if((h && w) && (h != out.h || w != out.w)){
+        image resized = resize_image(out, w, h);
+        free_image(out);
+        out = resized;
+    }
+    return out;
+}
+
+image load_image_from_buffer(unsigned char *buffer, int w, int h, int c)
+{
+#ifdef OPENCV
+    image out = buffer_to_image(buffer, w, h, c);
+#else
+    image out = buffer_to_image_stb(buffer, w, h, c);    // without OpenCV
 #endif  // OPENCV
 
     if((h && w) && (h != out.h || w != out.w)){

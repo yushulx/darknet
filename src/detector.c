@@ -1700,6 +1700,171 @@ int compare(const void *a_ptr, const void *b_ptr) {
     return delta < 0 ? -1 : delta > 0 ? 1 : 0;
 }
 
+void barcode_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh,
+    float hier_thresh, int dont_show, int ext_output, int save_labels, char *outfile, int letter_box, int benchmark_layers)
+{
+    list *options = read_data_cfg(datacfg);
+    char *name_list = option_find_str(options, "names", "data/names.list");
+    int names_size = 0;
+    char **names = get_labels_custom(name_list, &names_size); //get_labels(name_list);
+
+    image **alphabet = load_alphabet();
+    network net = parse_network_cfg_custom(cfgfile, 1, 1); // set batch=1
+    if (weightfile) {
+        load_weights(&net, weightfile);
+    }
+    net.benchmark_layers = benchmark_layers;
+    fuse_conv_batchnorm(net);
+    calculate_binary_weights(net);
+    if (net.layers[net.n - 1].classes != names_size) {
+        printf("\n Error: in the file %s number of names %d that isn't equal to classes=%d in the file %s \n",
+            name_list, names_size, net.layers[net.n - 1].classes, cfgfile);
+        if (net.layers[net.n - 1].classes > names_size) getchar();
+    }
+    srand(2222222);
+    char buff[256];
+    char *input = buff;
+    char *json_buf = NULL;
+    int json_image_id = 0;
+    FILE* json_file = NULL;
+    if (outfile) {
+        json_file = fopen(outfile, "wb");
+        if(!json_file) {
+          error("fopen failed");
+        }
+        char *tmp = "[\n";
+        fwrite(tmp, sizeof(char), strlen(tmp), json_file);
+    }
+    int j;
+    float nms = .45;    // 0.4F
+    while (1) {
+        // Barcode
+        printf("\n");
+        unsigned char* image_buffer = NULL;
+        int w, h, c;
+
+        // load image to unsigned char array
+        #ifdef OPENCV
+            load_image_buffer(filename, net.c, &image_buffer, &w, &h, &c);
+        #else
+            load_buffer_stb(filename, net.c, &image_buffer, &w, &h, &c);
+        #endif  
+
+        double total_buffer = get_time_point();
+        decode_barcode_buffer(image_buffer, w, h, c, FALSE, 0, 0, 0, 0);
+        printf("Total decode buffer in %lf milli-seconds.\n\n", ((double)get_time_point() - total_buffer) / 1000);
+
+        // double total_file = get_time_point();
+        // decode_barcode_file(filename, FALSE, 0, 0, 0, 0);
+        // printf("Total decode file in %lf milli-seconds.\n\n", ((double)get_time_point() - total_file) / 1000);
+        // total_file = get_time_point();
+        // Barcode
+
+        if (filename) {
+            strncpy(input, filename, 256);
+            if (strlen(input) > 0)
+                if (input[strlen(input) - 1] == 0x0d) input[strlen(input) - 1] = 0;
+        }
+        else {
+            printf("Enter Image Path: ");
+            fflush(stdout);
+            input = fgets(input, 256, stdin);
+            if (!input) break;
+            strtok(input, "\n");
+        }
+
+        double time = get_time_point();
+        double total_ml = time;
+        image im = load_image_from_buffer(image_buffer, w, h, c);
+        printf("\nLoad image to image object in %lf milli-seconds.\n\n", ((double)get_time_point() - time) / 1000);
+        
+        time = get_time_point();
+        image sized;
+        if(letter_box) sized = letterbox_image(im, net.w, net.h);
+        else sized = resize_image(im, net.w, net.h);
+
+        layer l = net.layers[net.n - 1];
+        int k;
+        for (k = 0; k < net.n; ++k) {
+            layer lk = net.layers[k];
+            if (lk.type == YOLO || lk.type == GAUSSIAN_YOLO || lk.type == REGION) {
+                l = lk;
+                printf(" Detection layer: %d - type = %d \n", k, l.type);
+            }
+        }
+        printf("\nImage processing in %lf milli-seconds.\n\n", ((double)get_time_point() - time) / 1000);
+
+        float *X = sized.data;
+
+        time = get_time_point();
+        network_predict(net, X);
+        //network_predict_image(&net, im); letterbox = 1;
+        printf("%s: Predicted in %lf milli-seconds.\n", input, ((double)get_time_point() - time) / 1000);
+
+        int nboxes = 0;
+        detection *dets = get_network_boxes(&net, im.w, im.h, thresh, hier_thresh, 0, 1, &nboxes, letter_box);
+        if (nms) {
+            if (l.nms_kind == DEFAULT_NMS) do_nms_sort(dets, nboxes, l.classes, nms);
+            else diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
+        }
+        // Barcode Region
+        int selected_detections_num;
+        detection_with_class* selected_detections = get_actual_detections(dets, nboxes, thresh, &selected_detections_num, names);
+        qsort(selected_detections, selected_detections_num, sizeof(*selected_detections), compare);
+        int i;
+        for (i = 0; i < selected_detections_num; ++i) {
+            const int best_class = selected_detections[i].best_class;
+            printf("%s: %.0f%%\n\n", names[best_class],    selected_detections[i].det.prob[best_class] * 100);
+            box b = selected_detections[i].det.bbox;
+            int left = (b.x - b.w / 2.)*im.w;
+            int right = (b.x + b.w / 2.)*im.w;
+            int top = (b.y - b.h / 2.)*im.h;
+            int bot = (b.y + b.h / 2.)*im.h;
+
+            decode_barcode_buffer(image_buffer, im.w, im.h, im.c, TRUE, left, right, top, bot);
+            // decode_barcode_file(filename, TRUE, left, right, top, bot);
+        }
+        printf("ML Total decode buffer in %lf milli-seconds.\n\n", ((double)get_time_point() - total_ml) / 1000);
+            
+        if (image_buffer) free(image_buffer);
+        // Barcode Region
+
+        draw_detections_v3(im, dets, nboxes, thresh, names, alphabet, l.classes, ext_output);
+        save_image(im, "predictions");
+        if (!dont_show) {
+            show_image(im, "predictions");
+        }
+
+        free_detections(dets, nboxes);
+        free_image(im);
+        free_image(sized);
+
+        if (!dont_show) {
+            wait_until_press_key_cv();
+            destroy_all_windows_cv();
+        }
+
+        if (filename) break;
+    }
+
+    // free memory
+    free_ptrs((void**)names, net.layers[net.n - 1].classes);
+    free_list_contents_kvp(options);
+    free_list(options);
+
+    int i;
+    const int nsize = 8;
+    for (j = 0; j < nsize; ++j) {
+        for (i = 32; i < 127; ++i) {
+            free_image(alphabet[j][i]);
+        }
+        free(alphabet[j]);
+    }
+    free(alphabet);
+
+    free_network(net);
+}
+
 void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filename, float thresh,
     float hier_thresh, int dont_show, int ext_output, int save_labels, char *outfile, int letter_box, int benchmark_layers)
 {
@@ -1752,21 +1917,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         }
         //image im;
         //image sized = load_image_resize(input, net.w, net.h, net.c, &im);
-        double time = get_time_point();
         image im = load_image(input, 0, 0, net.c);
-        printf("\nLoad image to image object in %lf milli-seconds.\n", ((double)get_time_point() - time) / 1000);
-        // Barcode
-        #ifdef OPENCV
-            time = get_time_point();
-            unsigned char* image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * im.w * im.h * net.c);
-            load_image_buffer(filename, net.c, image_buffer);
-            printf("Load image to char array in %lf milli-seconds.\n\n", ((double)get_time_point() - time) / 1000);
-            decode_barcode_buffer(image_buffer, im.w, im.h, im.c, FALSE, 0, 0, 0, 0);
-        #endif  
-        decode_barcode_file(filename, FALSE, 0, 0, 0, 0);
-        // Barcode
-
-        time = get_time_point();
         image sized;
         if(letter_box) sized = letterbox_image(im, net.w, net.h);
         else sized = resize_image(im, net.w, net.h);
@@ -1780,7 +1931,6 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
                 printf(" Detection layer: %d - type = %d \n", k, l.type);
             }
         }
-        printf("Image processing in %lf milli-seconds.\n\n", ((double)get_time_point() - time) / 1000);
 
         //box *boxes = calloc(l.w*l.h*l.n, sizeof(box));
         //float **probs = calloc(l.w*l.h*l.n, sizeof(float*));
@@ -1789,7 +1939,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
         float *X = sized.data;
 
         //time= what_time_is_it_now();
-        time = get_time_point();
+        double time = get_time_point();
         network_predict(net, X);
         //network_predict_image(&net, im); letterbox = 1;
         printf("%s: Predicted in %lf milli-seconds.\n", input, ((double)get_time_point() - time) / 1000);
@@ -1801,29 +1951,6 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile, char *filenam
             if (l.nms_kind == DEFAULT_NMS) do_nms_sort(dets, nboxes, l.classes, nms);
             else diounms_sort(dets, nboxes, l.classes, nms, l.nms_kind, l.beta_nms);
         }
-        // Barcode Region
-        int selected_detections_num;
-        detection_with_class* selected_detections = get_actual_detections(dets, nboxes, thresh, &selected_detections_num, names);
-        qsort(selected_detections, selected_detections_num, sizeof(*selected_detections), compare);
-        int i;
-        for (i = 0; i < selected_detections_num; ++i) {
-            const int best_class = selected_detections[i].best_class;
-            printf("%s: %.0f%%\n\n", names[best_class],    selected_detections[i].det.prob[best_class] * 100);
-            box b = selected_detections[i].det.bbox;
-            int left = (b.x - b.w / 2.)*im.w;
-            int right = (b.x + b.w / 2.)*im.w;
-            int top = (b.y - b.h / 2.)*im.h;
-            int bot = (b.y + b.h / 2.)*im.h;
-
-            #ifdef OPENCV
-                decode_barcode_buffer(image_buffer, im.w, im.h, im.c, TRUE, left, right, top, bot);
-            #endif  
-            decode_barcode_file(filename, TRUE, left, right, top, bot);
-        }
-        #ifdef OPENCV
-            free(image_buffer);
-        #endif  
-        // Barcode Region
         draw_detections_v3(im, dets, nboxes, thresh, names, alphabet, l.classes, ext_output);
         save_image(im, "predictions");
         if (!dont_show) {
@@ -2149,7 +2276,9 @@ void run_detector(int argc, char **argv)
         if (strlen(weights) > 0)
             if (weights[strlen(weights) - 1] == 0x0d) weights[strlen(weights) - 1] = 0;
     char *filename = (argc > 6) ? argv[6] : 0;
-    if (0 == strcmp(argv[2], "test")) test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, dont_show, ext_output, save_labels, outfile, letter_box, benchmark_layers);
+
+    if (0 == strcmp(argv[2], "barcode")) barcode_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, dont_show, ext_output, save_labels, outfile, letter_box, benchmark_layers);
+    else if (0 == strcmp(argv[2], "test")) test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, dont_show, ext_output, save_labels, outfile, letter_box, benchmark_layers);
     else if (0 == strcmp(argv[2], "train")) train_detector(datacfg, cfg, weights, gpus, ngpus, clear, dont_show, calc_map, mjpeg_port, show_imgs, benchmark_layers, chart_path);
     else if (0 == strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
     else if (0 == strcmp(argv[2], "recall")) validate_detector_recall(datacfg, cfg, weights);
