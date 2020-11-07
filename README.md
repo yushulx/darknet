@@ -38,12 +38,21 @@ cd test
 ..\darknet.exe detector barcode qrcode.data qrcode-yolov3-tiny.cfg qrcode-yolov3-tiny_last.weights 20201105151910.jpg
 ```
 
-**Performance**
+**Barcode Decoding Performance**
 
-| GPU              | Image             | Model       |Prediction  |
-| -----------------|-------------------| ------------|------------|
-| GeForce GTX 1660 | 20201105151910.jpg| Yolov3-tiny |22 ms       |
-| GeForce GTX 1660 | 20201105151910.jpg| Yolov3      |271.7ms     |
+`CPU Only`
+
+| Image                  |CPU                  |Decoding Time   |
+|------------------------|---------------------|----------------|
+| test\20201105151910.jpg|i7-3770 CPU @ 3.40GHz|161.3 ms|
+
+
+`GPU and Yolo v3 Model`
+
+| Image                  |GPU              | Model           |Prediction  |CPU                  |Decoding Time|
+|------------------------|-----------------| ----------------|------------|---------------------|-------------|
+| test\20201105151910.jpg|GeForce GTX 1660 | Yolov3-tiny     |19.7 ms     |i7-3770 CPU @ 3.40GHz|72.3 ms|
+| test\20201105151910.jpg|GeForce GTX 1660 | Yolov3          |266.2ms     |i7-3770 CPU @ 3.40GHz|67.3 ms|
 
 **Yolov3**
 ![Yolov3](test/yolov3.jpg)
