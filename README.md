@@ -45,6 +45,7 @@ cd test
 | Image                  |CPU                  |Decoding Time   |
 |------------------------|---------------------|----------------|
 | test\20201105151910.jpg|i7-3770 CPU @ 3.40GHz|161.3 ms|
+| test\20201105151910.jpg|i5-4460 CPU @ 3.20GHz|185.7 ms|
 
 
 `GPU and Yolo v3 Model`
@@ -53,6 +54,8 @@ cd test
 |------------------------|-----------------| ----------------|------------|---------------------|-------------|
 | test\20201105151910.jpg|GeForce GTX 1660 | Yolov3-tiny     |19.7 ms     |i7-3770 CPU @ 3.40GHz|72.3 ms|
 | test\20201105151910.jpg|GeForce GTX 1660 | Yolov3          |266.2ms     |i7-3770 CPU @ 3.40GHz|67.3 ms|
+| test\20201105151910.jpg|GeForce RTX 2060 | Yolov3-tiny     |3.6 ms     |i5-4460 CPU @ 3.20GHz|77.9 ms|
+| test\20201105151910.jpg|GeForce RTX 2060 | Yolov3          |32.3ms     |i5-4460 CPU @ 3.20GHz|83.3 ms|
 
 **Yolov3**
 ![Yolov3](test/yolov3.jpg)
