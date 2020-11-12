@@ -1639,12 +1639,8 @@ void decode_barcode_file(char *filename, boolean has_region, int left, int right
     DBR_DestroyInstance(barcodeReader);
 }
 
-void decode_barcode_buffer(const unsigned char *data, int width, int height, int channel, boolean has_region, int left, int right, int top, int bottom) 
+void decode_barcode_buffer(void* barcodeReader, const unsigned char *data, int width, int height, int channel, boolean has_region, int left, int right, int top, int bottom) 
 {
-    void* barcodeReader = DBR_CreateInstance();
-    // Apply for a valid license https://www.dynamsoft.com/customer/license/trialLicense
-    DBR_InitLicense(barcodeReader, "t0260NwAAAHV***************");
-
     if (has_region)
     {
         PublicRuntimeSettings settings;
@@ -1656,6 +1652,9 @@ void decode_barcode_buffer(const unsigned char *data, int width, int height, int
         settings.region.regionBottom = bottom;
         settings.region.regionMeasuredByPercentage = 0;
         settings.barcodeFormatIds = BF_QR_CODE;
+        settings.expectedBarcodesCount = 1;
+        settings.localizationModes[2] = LM_SKIP;
+        settings.localizationModes[3] = LM_SKIP;
         DBR_UpdateRuntimeSettings(barcodeReader, &settings, errorMessage, 256);
     }
 
@@ -1690,7 +1689,6 @@ void decode_barcode_buffer(const unsigned char *data, int width, int height, int
     }
     
     DBR_FreeTextResults(&resultArray);
-    DBR_DestroyInstance(barcodeReader);
 }
 // Barcode
 int compare(const void *a_ptr, const void *b_ptr) {
@@ -1740,6 +1738,9 @@ void barcode_detector(char *datacfg, char *cfgfile, char *weightfile, char *file
     while (1) {
         // Barcode
         printf("\n");
+        void* barcodeReader = DBR_CreateInstance();
+        // Apply for a valid license https://www.dynamsoft.com/customer/license/trialLicense
+        DBR_InitLicense(barcodeReader, "t0260NwAAAHV***************");
         unsigned char* image_buffer = NULL;
         int w, h, c;
 
@@ -1751,7 +1752,7 @@ void barcode_detector(char *datacfg, char *cfgfile, char *weightfile, char *file
         #endif  
 
         double total_buffer = get_time_point();
-        decode_barcode_buffer(image_buffer, w, h, c, FALSE, 0, 0, 0, 0);
+        decode_barcode_buffer(barcodeReader,image_buffer, w, h, c, FALSE, 0, 0, 0, 0);
         printf("Total decode buffer in %lf milli-seconds.\n\n", ((double)get_time_point() - total_buffer) / 1000);
 
         // double total_file = get_time_point();
@@ -1792,7 +1793,7 @@ void barcode_detector(char *datacfg, char *cfgfile, char *weightfile, char *file
                 printf(" Detection layer: %d - type = %d \n", k, l.type);
             }
         }
-        printf("\nImage processing in %lf milli-seconds.\n\n", ((double)get_time_point() - time) / 1000);
+        printf("\nResize image in %lf milli-seconds.\n\n", ((double)get_time_point() - time) / 1000);
 
         float *X = sized.data;
 
@@ -1810,10 +1811,12 @@ void barcode_detector(char *datacfg, char *cfgfile, char *weightfile, char *file
         // Barcode Region
         int selected_detections_num;
         detection_with_class* selected_detections = get_actual_detections(dets, nboxes, thresh, &selected_detections_num, names);
-        qsort(selected_detections, selected_detections_num, sizeof(*selected_detections), compare);
+        // qsort(selected_detections, selected_detections_num, sizeof(*selected_detections), compare);
         int i;
         for (i = 0; i < selected_detections_num; ++i) {
             const int best_class = selected_detections[i].best_class;
+            if (selected_detections[i].det.prob[best_class] < 0.5) continue;
+            
             printf("%s: %.0f%%\n\n", names[best_class],    selected_detections[i].det.prob[best_class] * 100);
             box b = selected_detections[i].det.bbox;
             int left = (b.x - b.w / 2.)*im.w;
@@ -1821,12 +1824,13 @@ void barcode_detector(char *datacfg, char *cfgfile, char *weightfile, char *file
             int top = (b.y - b.h / 2.)*im.h;
             int bot = (b.y + b.h / 2.)*im.h;
 
-            decode_barcode_buffer(image_buffer, im.w, im.h, im.c, TRUE, left, right, top, bot);
+            decode_barcode_buffer(barcodeReader, image_buffer, im.w, im.h, im.c, TRUE, left, right, top, bot);
             // decode_barcode_file(filename, TRUE, left, right, top, bot);
         }
         printf("ML Total decode buffer in %lf milli-seconds.\n\n", ((double)get_time_point() - total_ml) / 1000);
             
         if (image_buffer) free(image_buffer);
+        DBR_DestroyInstance(barcodeReader);
         // Barcode Region
 
         draw_detections_v3(im, dets, nboxes, thresh, names, alphabet, l.classes, ext_output);

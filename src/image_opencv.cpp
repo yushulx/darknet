@@ -164,17 +164,9 @@ extern "C" void load_image_buffer(char *filename, int channels, unsigned char** 
     int h = mat.rows;
     int c = mat.channels();
     unsigned char *data = (unsigned char *)mat.data;
-    unsigned char* image_buffer = (unsigned char*)malloc(sizeof(unsigned char) * w * h * c);
-    int index = 0;
-    for (int y = 0; y < h; ++y) {
-        for (int k = 0; k < c; ++k) {
-            for (int x = 0; x < w; ++x) {
-
-                image_buffer[index] = data[index];
-                index++;
-            }
-        }
-    }  
+    int size = sizeof(unsigned char) * w * h * c;
+    unsigned char* image_buffer = (unsigned char*)malloc(size);
+    memcpy(image_buffer, data, size); 
     *buffer = image_buffer;
     *width = w;
     *height = h;
